@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flashcard Quiz App — CodeAlpha</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --card: #1e1e1e;
+    --accent: #f5c842;
+    --accent2: #e8884a;
+    --text: #f0ece4;
+    --muted: #888;
+    --border: #2e2e2e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grain */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    padding: 24px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    z-index: 1;
+  }
+
+  .logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+
+  .logo span { color: var(--text); }
+
+  .card-counter {
+    font-size: 13px;
+    color: var(--muted);
+    background: var(--surface);
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* CARD FLIP */
+  .card-scene {
+    perspective: 1200px;
+    width: 100%;
+    height: 320px;
+    margin-bottom: 32px;
+    cursor: pointer;
+  }
+
+  .card-inner {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .card-inner.flipped { transform: rotateY(180deg); }
+
+  .card-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    border: 1px solid var(--border);
+  }
+
+  .card-front {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  .card-back {
+    background: linear-gradient(135deg, #1a2e1a 0%, #162e16 50%, #0f460f 100%);
+    transform: rotateY(180deg);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  .card-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 20px;
+    font-weight: 500;
+  }
+
+  .card-back .card-label { color: #6fcf97; }
+
+  .card-text {
+    font-family: 'Playfair Display', serif;
+    font-size: 26px;
+    line-height: 1.4;
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  .card-hint {
+    position: absolute;
+    bottom: 20px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.3);
+  }
+
+  /* SHOW ANSWER BUTTON */
+  .show-btn {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+    margin-bottom: 20px;
+  }
+
+  .show-btn:hover { background: #ffd700; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(245,200,66,0.3); }
+
+  /* NAVIGATION */
+  .nav-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 40px;
+  }
+
+  .nav-btn {
+    flex: 1;
+    padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .nav-btn:hover { background: var(--card); border-color: var(--accent); color: var(--accent); }
+  .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* PROGRESS BAR */
+  .progress-wrap {
+    margin-bottom: 40px;
+  }
+
+  .progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .progress-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+
+  /* MANAGE SECTION */
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    color: var(--text);
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .input-row {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  input, textarea {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    resize: none;
+  }
+
+  input:focus, textarea:focus { border-color: var(--accent); }
+
+  .add-btn {
+    padding: 14px 24px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .add-btn:hover { background: var(--accent); color: #000; }
+
+  /* CARD LIST */
+  .card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .card-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    transition: border-color 0.2s;
+  }
+
+  .card-item:hover { border-color: #444; }
+
+  .card-item-text { flex: 1; }
+  .card-item-q { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .card-item-a { font-size: 12px; color: var(--muted); }
+
+  .item-actions { display: flex; gap: 8px; }
+
+  .edit-btn, .del-btn {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s;
+  }
+
+  .edit-btn { border-color: #555; color: #aaa; background: transparent; }
+  .edit-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .del-btn { border-color: #5c2020; color: #e05; background: transparent; }
+  .del-btn:hover { background: #e05; color: #fff; border-color: #e05; }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.active { display: flex; }
+
+  .modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    width: 90%;
+    max-width: 440px;
+  }
+
+  .modal h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    margin-bottom: 20px;
+    color: var(--accent);
+  }
+
+  .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+
+  .save-btn {
+    flex: 1;
+    padding: 12px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .cancel-btn {
+    flex: 1;
+    padding: 12px;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  @media (max-width: 480px) {
+    .card-text { font-size: 20px; }
+    header { padding: 16px 20px; }
+    main { padding: 24px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Flash<span>Cards</span></div>
+  <div class="card-counter" id="counterDisplay">0 / 0 cards</div>
+</header>
+
+<main>
+
+  <!-- PROGRESS -->
+  <div class="progress-wrap">
+    <div class="progress-info">
+      <span>Progress</span>
+      <span id="progressText">Card 0 of 0</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- FLIP CARD -->
+  <div class="card-scene" id="cardScene" onclick="flipCard()">
+    <div class="card-inner" id="cardInner">
+      <div class="card-face card-front">
+        <div class="card-label">Question</div>
+        <div class="card-text" id="questionText">Add your first flashcard below!</div>
+        <div class="card-hint">Click to flip</div>
+      </div>
+      <div class="card-face card-back">
+        <div class="card-label">Answer</div>
+        <div class="card-text" id="answerText">The answer will appear here.</div>
+        <div class="card-hint">Click to flip back</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHOW ANSWER BUTTON -->
+  <button class="show-btn" onclick="flipCard()">👁 Show Answer</button>
+
+  <!-- NAVIGATION -->
+  <div class="nav-row">
+    <button class="nav-btn" id="prevBtn" onclick="prevCard()">← Previous</button>
+    <button class="nav-btn" id="nextBtn" onclick="nextCard()">Next →</button>
+  </div>
+
+  <!-- ADD CARD -->
+  <div class="section-title">➕ Add New Flashcard</div>
+  <div class="input-row">
+    <input type="text" id="newQuestion" placeholder="Enter your question...">
+    <textarea id="newAnswer" rows="2" placeholder="Enter the answer..."></textarea>
+  </div>
+  <button class="add-btn" onclick="addCard()">+ Add Flashcard</button>
+
+  <!-- CARD LIST -->
+  <div class="card-list" id="cardList"></div>
+
+</main>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3>✏️ Edit Flashcard</h3>
+    <div class="input-row">
+      <input type="text" id="editQuestion" placeholder="Question...">
+      <textarea id="editAnswer" rows="2" placeholder="Answer..."></textarea>
+    </div>
+    <div class="modal-btns">
+      <button class="cancel-btn" onclick="closeModal()">Cancel</button>
+      <button class="save-btn" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let cards = [
+    { q: "What is the capital of Pakistan?", a: "Islamabad" },
+    { q: "What does HTML stand for?", a: "HyperText Markup Language" },
+    { q: "Who wrote the national anthem of Pakistan?", a: "Hafeez Jalandhari" }
+  ];
+
+  let current = 0;
+  let editIndex = -1;
+
+  function render() {
+    const total = cards.length;
+    document.getElementById('counterDisplay').textContent = `${total} card${total !== 1 ? 's' : ''}`;
+    document.getElementById('progressText').textContent = total ? `Card ${current + 1} of ${total}` : 'No cards';
+    document.getElementById('progressFill').style.width = total ? `${((current + 1) / total) * 100}%` : '0%';
+
+    if (total === 0) {
+      document.getElementById('questionText').textContent = 'No cards yet! Add one below.';
+      document.getElementById('answerText').textContent = '—';
+    } else {
+      document.getElementById('questionText').textContent = cards[current].q;
+      document.getElementById('answerText').textContent = cards[current].a;
+    }
+
+    document.getElementById('cardInner').classList.remove('flipped');
+    document.getElementById('prevBtn').disabled = current === 0;
+    document.getElementById('nextBtn').disabled = current === total - 1 || total === 0;
+
+    renderList();
+  }
+
+  function renderList() {
+    const list = document.getElementById('cardList');
+    if (cards.length === 0) {
+      list.innerHTML = '<div class="empty-state">No flashcards yet. Add one above!</div>';
+      return;
+    }
+    list.innerHTML = cards.map((c, i) => `
+      <div class="card-item">
+        <div class="card-item-text">
+          <div class="card-item-q">Q: ${c.q}</div>
+          <div class="card-item-a">A: ${c.a}</div>
+        </div>
+        <div class="item-actions">
+          <button class="edit-btn" onclick="openEdit(${i})">Edit</button>
+          <button class="del-btn" onclick="deleteCard(${i})">Delete</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function flipCard() {
+    if (cards.length === 0) return;
+    document.getElementById('cardInner').classList.toggle('flipped');
+  }
+
+  function prevCard() {
+    if (current > 0) { current--; render(); }
+  }
+
+  function nextCard() {
+    if (current < cards.length - 1) { current++; render(); }
+  }
+
+  function addCard() {
+    const q = document.getElementById('newQuestion').value.trim();
+    const a = document.getElementById('newAnswer').value.trim();
+    if (!q || !a) { alert('Please enter both question and answer!'); return; }
+    cards.push({ q, a });
+    document.getElementById('newQuestion').value = '';
+    document.getElementById('newAnswer').value = '';
+    current = cards.length - 1;
+    render();
+  }
+
+  function deleteCard(i) {
+    if (!confirm('Delete this flashcard?')) return;
+    cards.splice(i, 1);
+    if (current >= cards.length) current = Math.max(0, cards.length - 1);
+    render();
+  }
+
+  function openEdit(i) {
+    editIndex = i;
+    document.getElementById('editQuestion').value = cards[i].q;
+    document.getElementById('editAnswer').value = cards[i].a;
+    document.getElementById('editModal').classList.add('active');
+  }
+
+  function closeModal() {
+    document.getElementById('editModal').classList.remove('active');
+    editIndex = -1;
+  }
+
+  function saveEdit() {
+    const q = document.getElementById('editQuestion').value.trim();
+    const a = document.getElementById('editAnswer').value.trim();
+    if (!q || !a) { alert('Please fill both fields!'); return; }
+    cards[editIndex] = { q, a };
+    closeModal();
+    render();
+  }
+
+  render();
+</script>
+</body>
+</html>
